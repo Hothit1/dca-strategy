@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f0f2f5;
+        }
+        .input-section, .strategy-section {
+            background-color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow-x: auto;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .input-section input {
+            width: 120px;
+        }
+        table input {
+            width: 85px;
+        }
+        label {
+            display: inline-block;
+            width: 150px;
+            margin-right: 10px;
+            color: #333;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            min-width: 800px;
+            table-layout: fixed;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        th:nth-child(1), td:nth-child(1) { width: 12%; }  /* Entry Price */
+        th:nth-child(2), td:nth-child(2) { width: 8%; }   /* Drop % */
+        th:nth-child(3), td:nth-child(3) { width: 10%; }  /* % of Capital */
+        th:nth-child(4), td:nth-child(4) { width: 15%; }  /* Amount */
+        th:nth-child(5), td:nth-child(5) { width: 15%; }  /* Coins */
+        th:nth-child(6), td:nth-child(6) { width: 20%; }  /* MCap Entry */
+        th:nth-child(7), td:nth-child(7) { width: 20%; }  /* MCap Target */
+        
+        th {
+            background-color: #f8f9fa;
+            color: #333;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .editable {
+            background-color: #fff8dc;
+        }
+        .summary {
+            margin-top: 15px;
+            padding: 15px;
+            background-color: #e8f4ff;
+            border-radius: 8px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .mcap-highlight {
+            color: #28a745;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>DCA Strategy Calculator</h1>
+    
+    <div class="input-section">
+        <div class="input-group">
+            <label>Current Price ($):</label>
+            <input type="number" id="currentPrice" value="24" step="0.000001">
+        </div>
+        <div class="input-group">
+            <label>Capital ($):</label>
+            <input type="number" id="capital" value="375000">
+        </div>
+        <div class="input-group">
+            <label>Target Price ($):</label>
+            <input type="number" id="targetPrice" value="60" step="0.000001">
+        </div>
+        <div class="input-group">
+            <label>Total Supply:</label>
+            <input type="number" id="totalSupply" value="334333333">
+        </div>
+        <button onclick="calculateAll()">Calculate All Strategies</button>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        function formatNumber(num) {
+            return new Intl.NumberFormat('en-US').format(num);
+        }
+
+        function calculateMcap(price, totalSupply) {
+            return price * totalSupply;
+        }
+
+        function createStrategySection(title, id, strategy) {
+            const section = document.createElement('div');
+            section.className = 'strategy-section';
+            section.innerHTML = `
+                <h2>${title}</h2>
+                <div style="overflow-x: auto;">
+                    <table id="${id}Table">
+                        <thead>
+                            <tr>
+                                <th>Entry Price ($)</th>
+                                <th>Drop %</th>
+                                <th>% of Capital</th>
+                                <th>Amount ($)</th>
+                                <th>Coins</th>
+                                <th>Market Cap at Entry</th>
+                                <th>Market Cap at Target</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="summary" id="${id}Summary"></div>
+                <button onclick="recalculateStrategy('${id}')">Update Strategy</button>
+            `;
+            return section;
+        }
+
+        function updateStrategyTable(id, strategy, currentPrice) {
+            const table = document.getElementById(`${id}Table`).getElementsByTagName('tbody')[0];
+            table.innerHTML = '';
+            
+            strategy.entries.forEach((entry, index) => {
+                const row = table.insertRow();
+                const dropPercent = ((1 - entry.price / currentPrice) * 100).toFixed(2);
+                
+                row.innerHTML = `
+                    <td><input type="number" class="editable entry-price" value="${entry.price.toFixed(6)}" step="0.000001"></td>
+                    <td><input type="number" class="editable drop-percent" value="${dropPercent}" step="0.01"></td>
+                    <td><input type="number" class="editable capital-percent" value="${entry.percent}" step="1"></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td class="mcap-highlight"></td>
+                `;
+            });
+        }
+
+        function recalculateStrategy(id) {
+            const table = document.getElementById(`${id}Table`);
+            const rows = table.getElementsByTagName('tbody')[0].rows;
+            const entries = [];
+            let totalPercent = 0;
+
+            for (let row of rows) {
+                const price = parseFloat(row.cells[0].getElementsByTagName('input')[0].value);
+                const percent = parseFloat(row.cells[2].getElementsByTagName('input')[0].value);
+                totalPercent += percent;
+                entries.push({ price, percent });
+            }
+
+            if (Math.abs(totalPercent - 100) > 0.01) {
+                alert('Total percentage must equal 100%');
+                return;
+            }
+
+            calculateStrategy(id, { entries });
+        }
+
+        function calculateStrategy(id, strategy) {
+            const capital = parseFloat(document.getElementById('capital').value);
+            const targetPrice = parseFloat(document.getElementById('targetPrice').value);
+            const totalSupply = parseFloat(document.getElementById('totalSupply').value);
+            const table = document.getElementById(`${id}Table`).getElementsByTagName('tbody')[0];
+            
+            let totalCoins = 0;
+            let totalSpent = 0;
+
+            strategy.entries.forEach((entry, index) => {
+                const amount = capital * (entry.percent / 100);
+                const coins = amount / entry.price;
+                totalCoins += coins;
+                totalSpent += amount;
+                const mcapEntry = calculateMcap(entry.price, totalSupply);
+                const mcapTarget = calculateMcap(targetPrice, totalSupply);
+
+                const row = table.rows[index];
+                row.cells[3].textContent = `$${formatNumber(amount)}`;
+                row.cells[4].textContent = formatNumber(coins.toFixed(2));
+                row.cells[5].textContent = `$${formatNumber(mcapEntry)}`;
+                row.cells[6].textContent = `$${formatNumber(mcapTarget)}`;
+            });
+
+            const value = totalCoins * targetPrice;
+            const avg = totalSpent / totalCoins;
+            const profit = ((value - capital) / capital * 100).toFixed(2);
+            
+            document.getElementById(`${id}Summary`).innerHTML = `
+                Average Entry: $${avg.toFixed(6)}<br>
+                Value at Target: $${formatNumber(value.toFixed(2))}<br>
+                Profit: ${profit}%
+            `;
+        }
+
+        function calculateAll() {
+            const currentPrice = parseFloat(document.getElementById('currentPrice').value);
+
+            const strategies = {
+                'allin': {
+                    title: 'All-in Strategy',
+                    entries: [
+                        { percent: 100, price: currentPrice }
+                    ]
+                },
+                'fifty': {
+                    title: '50-25-25 Strategy',
+                    entries: [
+                        { percent: 50, price: currentPrice },
+                        { percent: 25, price: currentPrice * 0.7 },
+                        { percent: 25, price: currentPrice * 0.7 * 0.7 }
+                    ]
+                },
+                'twenty': {
+                    title: '25% Each 20% Drop',
+                    entries: Array(4).fill(0).map((_, i) => ({
+                        percent: 25,
+                        price: currentPrice * Math.pow(0.8, i)
+                    }))
+                },
+                'progressive': {
+                    title: '25-30-45 Strategy',
+                    entries: [
+                        { percent: 25, price: currentPrice },
+                        { percent: 30, price: currentPrice * 0.7 },
+                        { percent: 45, price: currentPrice * 0.7 * 0.7 }
+                    ]
+                }
+            };
+
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            Object.entries(strategies).forEach(([id, strategy]) => {
+                const section = createStrategySection(strategy.title, id, strategy);
+                resultsDiv.appendChild(section);
+                updateStrategyTable(id, strategy, currentPrice);
+                calculateStrategy(id, strategy);
+            });
+        }
+
+        // Calculate on page load
+        calculateAll();
+    </script>
+</body>
+</html>
