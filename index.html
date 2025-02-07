@@ -52,13 +52,13 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        th:nth-child(1), td:nth-child(1) { width: 12%; }  /* Entry Price */
-        th:nth-child(2), td:nth-child(2) { width: 8%; }   /* Drop % */
-        th:nth-child(3), td:nth-child(3) { width: 10%; }  /* % of Capital */
-        th:nth-child(4), td:nth-child(4) { width: 15%; }  /* Amount */
-        th:nth-child(5), td:nth-child(5) { width: 15%; }  /* Coins */
-        th:nth-child(6), td:nth-child(6) { width: 20%; }  /* MCap Entry */
-        th:nth-child(7), td:nth-child(7) { width: 20%; }  /* MCap Target */
+        th:nth-child(1), td:nth-child(1) { width: 12%; }
+        th:nth-child(2), td:nth-child(2) { width: 8%; }
+        th:nth-child(3), td:nth-child(3) { width: 10%; }
+        th:nth-child(4), td:nth-child(4) { width: 15%; }
+        th:nth-child(5), td:nth-child(5) { width: 15%; }
+        th:nth-child(6), td:nth-child(6) { width: 20%; }
+        th:nth-child(7), td:nth-child(7) { width: 20%; }
         
         th {
             background-color: #f8f9fa;
@@ -91,6 +91,9 @@
         .mcap-highlight {
             color: #28a745;
             font-weight: bold;
+        }
+        .unfilled {
+            background-color: #ffebee;
         }
     </style>
 </head>
@@ -188,8 +191,9 @@
                 entries.push({ price, percent });
             }
 
-            if (Math.abs(totalPercent - 100) > 0.01) {
-                alert('Total percentage must equal 100%');
+            // Allow percentages less than 100%
+            if (totalPercent > 100) {
+                alert('Total percentage cannot exceed 100%');
                 return;
             }
 
@@ -204,8 +208,12 @@
             
             let totalCoins = 0;
             let totalSpent = 0;
+            let totalPercentage = 0;
 
             strategy.entries.forEach((entry, index) => {
+                const row = table.rows[index];
+                totalPercentage += entry.percent;
+                
                 const amount = capital * (entry.percent / 100);
                 const coins = amount / entry.price;
                 totalCoins += coins;
@@ -213,19 +221,28 @@
                 const mcapEntry = calculateMcap(entry.price, totalSupply);
                 const mcapTarget = calculateMcap(targetPrice, totalSupply);
 
-                const row = table.rows[index];
                 row.cells[3].textContent = `$${formatNumber(amount)}`;
                 row.cells[4].textContent = formatNumber(coins.toFixed(2));
                 row.cells[5].textContent = `$${formatNumber(mcapEntry)}`;
                 row.cells[6].textContent = `$${formatNumber(mcapTarget)}`;
+                
+                // Highlight unfilled orders
+                if (entry.percent === 0) {
+                    row.classList.add('unfilled');
+                } else {
+                    row.classList.remove('unfilled');
+                }
             });
 
             const value = totalCoins * targetPrice;
             const avg = totalSpent / totalCoins;
-            const profit = ((value - capital) / capital * 100).toFixed(2);
+            const profit = ((value - totalSpent) / totalSpent * 100).toFixed(2);
+            const unusedCapital = capital * (1 - totalPercentage / 100);
             
             document.getElementById(`${id}Summary`).innerHTML = `
                 Average Entry: $${avg.toFixed(6)}<br>
+                Capital Deployed: $${formatNumber(totalSpent.toFixed(2))} (${totalPercentage}%)<br>
+                Unused Capital: $${formatNumber(unusedCapital.toFixed(2))} (${(100 - totalPercentage).toFixed(2)}%)<br>
                 Value at Target: $${formatNumber(value.toFixed(2))}<br>
                 Profit: ${profit}%
             `;
